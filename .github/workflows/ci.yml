@@ -1,0 +1,47 @@
+
+name: CI - Lakehouse Olist
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar-notebooks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validar notebooks PySpark
+        run: |
+          python - <<'PY'
+          import ast
+          import json
+          from pathlib import Path
+
+          notebooks = sorted(Path("notebooks").glob("*.ipynb"))
+          assert notebooks, "Nenhum notebook encontrado"
+
+          for notebook in notebooks:
+              conteudo = json.loads(notebook.read_text(encoding="utf-8"))
+              assert conteudo.get("cells"), f"Notebook vazio: {notebook}"
+
+              for numero, celula in enumerate(conteudo["cells"], start=1):
+                  if celula["cell_type"] == "code":
+                      codigo = "".join(celula["source"])
+                      ast.parse(codigo, filename=f"{notebook}:celula-{numero}")
+
+              print(f"OK: {notebook.name}")
+
+          print("Validação dos notebooks concluída!")
+          PY
