@@ -4,7 +4,7 @@
 
 Construir um Lakehouse utilizando dados públicos do e-commerce brasileiro Olist, aplicando arquitetura Medallion, processamento com PySpark e armazenamento em Delta Lake.
 
-**Plataforma utilizada:** Databricks Free Edition. A integração direta com serviços AWS ainda não foi implementada.
+**Ambiente utilizado:** Databricks Free Edition. A integração direta com serviços AWS ainda não foi implementada.
 
 ## 2. Tecnologias
 
@@ -14,10 +14,11 @@ Construir um Lakehouse utilizando dados públicos do e-commerce brasileiro Olist
 - Unity Catalog
 - Lakeflow Jobs
 - Git e GitHub
+- GitHub Actions
 
 ## 3. Arquitetura
 
-O pipeline está organizado em três camadas:
+O pipeline utiliza três camadas:
 
 - **Bronze:** ingestão dos nove arquivos CSV originais em tabelas Delta.
 - **Silver:** conversão de tipos, padronização e validações essenciais.
@@ -27,7 +28,7 @@ As tabelas estão organizadas nos schemas `workspace.bronze`, `workspace.silver`
 
 ## 4. Camada Gold
 
-Modelo dimensional inicial composto por:
+Modelo dimensional inicial:
 
 | Tabela | Finalidade |
 |---|---|
@@ -37,13 +38,11 @@ Modelo dimensional inicial composto por:
 | `dim_vendedor` | Identificação e localização dos vendedores |
 | `dim_tempo` | Calendário analítico |
 
-A `fato_vendas` utiliza granularidade de um registro por item do pedido. Os valores dos produtos e fretes permanecem separados.
+A `fato_vendas` utiliza granularidade de um registro por item do pedido, mantendo valores dos produtos e fretes separados.
 
 ## 5. Orquestração — Lakeflow Jobs
 
 **Job:** `p04_lakehouse_olist_pipeline`
-
-A execução foi configurada com cinco tarefas:
 
 | Tarefa | Notebook | Dependência |
 |---|---|---|
@@ -52,45 +51,83 @@ A execução foi configurada com cinco tarefas:
 | `silver_orders` | `03_silver-orders` | `bronze_orders` |
 | `silver_demais_tabelas` | `04_silver` | `bronze_demais_tabelas` |
 | `gold_modelagem` | `05_gold_modelagem` | Ambas as tarefas Silver |
+| `validar_qualidade` | `06_qualidade_dados` | `gold_modelagem` |
 
-As tarefas Bronze podem executar independentemente. A Gold depende da conclusão bem-sucedida das duas tarefas Silver.
+As tarefas Bronze são independentes. A tarefa de qualidade é executada após a conclusão bem-sucedida da Gold.
 
-### Resultado da execução
+**Execução:** manual, com compute Serverless e sem agendamento automático.
 
-- **Data:** 02/11/2026
-- **Modo:** execução manual
-- **Compute:** Serverless
-- **Status final do Job:** `Succeeded`
-- **Agendamento automático:** não configurado
+**Resultado:** execuções completas com status `Succeeded`.
 
-### Limitações atuais
+## 6. Testes de qualidade
 
-Os notebooks verificam se as tabelas já existem antes da gravação. Essa abordagem evita sobrescritas acidentais, mas não implementa atualização incremental.
+O notebook `06_qualidade_dados` consulta dados reais da tabela `workspace.gold.fato_vendas`.
 
-Consequentemente, novas informações nas fontes não são incorporadas automaticamente às tabelas existentes.
+**Validações implementadas:**
 
-A configuração do Lakeflow Job foi realizada pela interface do Databricks e ainda não está declarada como código versionado no repositório.
+1. Ausência de valores nulos em `order_id` e `order_item_id`.
+2. Ausência de duplicidades na combinação dessas duas colunas.
+3. Integridade referencial entre `fato_vendas.customer_id` e `dim_cliente.customer_id`.
 
-## 6. Versionamento
+As verificações utilizam PySpark e `assert`. Uma condição inválida interrompe a execução da tarefa de qualidade.
+
+As regras foram executadas com sucesso no Lakeflow Jobs.
+
+## 7. Integração contínua — GitHub Actions
+
+Workflow: `.github/workflows/ci.yml`
+
+A integração contínua executa verificações em Pull Requests direcionados à `main`.
+
+**Verificações:**
+- Leitura da estrutura JSON dos notebooks.
+- Existência de células nos notebooks.
+- Análise da sintaxe Python.
+
+O workflow foi executado com sucesso no GitHub Actions.
+
+Essas verificações não executam o processamento Spark nem substituem os testes de qualidade realizados no Databricks.
+
+## 8. Monitoramento — Lakeflow Jobs
+
+O pipeline utiliza os recursos nativos de monitoramento do Databricks.
+
+**Configurações implementadas:**
+- Histórico de execuções disponível na aba Runs.
+- Acompanhamento do status individual das seis tarefas.
+- Notificação por e-mail configurada para falhas do Job.
+- Execução manual, sem gatilhos ou agendamentos automáticos.
+
+**Validações realizadas:**
+- Execuções completas com status `Succeeded`.
+- Tarefa `validar_qualidade` executada com sucesso após a Gold.
+- Configuração de notificação por falha salva.
+
+**Limitação:** o recebimento de uma notificação real de falha ainda não foi testado.
+
+## 9. Versionamento
 
 O desenvolvimento segue GitHub Flow:
 
-1. Branch de desenvolvimento criada a partir da `main`.
-2. Implementação e validação.
-3. Commit e Push.
-4. Pull Request e Merge.
-5. Sincronização da `main`.
+1. Atualização da `main`.
+2. Criação de branch específica.
+3. Implementação e validação.
+4. Commit e Push.
+5. Pull Request e Merge.
+6. Sincronização da `main` e encerramento da branch.
 
-## 7. Próximas melhorias
+## 10. Limitações e próximas melhorias
 
-- Atualização incremental e reprocessamento seguro.
-- Testes automatizados e regras adicionais de qualidade.
-- Monitoramento e tratamento de falhas.
-- CI/CD e versionamento da configuração dos Jobs.
-- Avaliação da integração com Amazon S3.
+- Implementar atualização incremental e reprocessamento seguro.
+- Ampliar as regras de qualidade quando necessário.
+- Validar o recebimento dos alertas de falha.
+- Implementar CD e versionamento da definição do Lakeflow Job.
+- Avaliar integração com Amazon S3 e respectivos custos.
 
-## 8. Status
+## 11. Status do projeto
 
-**Em desenvolvimento.**
+**Em desenvolvimento — atualização em 02/11/2026.**
 
-Camadas Bronze, Silver e Gold implementadas. Primeira execução completa do Lakeflow Job concluída com sucesso. Melhorias de produção e automação ainda pendentes.
+As camadas Bronze, Silver e Gold estão implementadas. O Lakeflow Job possui seis tarefas e foi executado com sucesso, incluindo validações de qualidade dos dados reais.
+
+O GitHub Actions está configurado e validado. O monitoramento possui histórico de execuções e notificação por falha configurada, ainda sem teste de entrega do alerta.
