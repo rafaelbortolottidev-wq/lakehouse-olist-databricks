@@ -1,16 +1,22 @@
 # DOCUMENTAÇÃO MASTER — P04 Lakehouse Olist Databricks + AWS
 
-**Atualização:** 30/10/2026  
-**Etapa:** 2 — Camada Bronze completa  
-**Status:** Implementação validada; documentação e Pull Request pendentes.
+**Atualização:** 01/11/2026  
+**Etapa atual:** 3 — Camada Silver em desenvolvimento  
+**Status:** Bronze concluída; primeira tabela Silver validada e versionada.
 
 ## 1. Objetivo e escopo
 
-Desenvolver um Lakehouse de e-commerce utilizando Databricks, PySpark, Delta Lake e Unity Catalog, com arquitetura Medallion (Bronze, Silver e Gold) e futura integração com serviços AWS.
+Desenvolver um Lakehouse de e-commerce utilizando Databricks, PySpark, Delta Lake e Unity Catalog, seguindo a arquitetura Medallion (Bronze, Silver e Gold).
 
-**Estado atual:** nove arquivos CSV originais carregados, nove tabelas Bronze criadas em Delta Lake e contagens validadas.
+O projeto tem como finalidade demonstrar competências práticas de Engenharia de Dados, incluindo ingestão, transformação, qualidade, governança, versionamento e automação.
 
-A implementação utiliza Databricks Free Edition e compute Serverless.
+**Estado atual:**
+- 9 arquivos CSV originais carregados no Unity Catalog Volume.
+- 9 tabelas Bronze implementadas em Delta Lake.
+- Primeira tabela Silver (`orders`) criada e validada.
+- Código versionado no GitHub utilizando GitHub Flow.
+
+A implementação utiliza Databricks Free Edition com compute Serverless. A integração operacional com serviços AWS permanece planejada.
 
 ## 2. Arquitetura implementada
 
@@ -28,6 +34,7 @@ workspace.default.olist_raw
 Databricks / PySpark
          |
          v
+BRONZE — Delta Lake
 workspace.bronze
          |
          +-- orders
@@ -41,45 +48,65 @@ workspace.bronze
          +-- product_category_name_translation
          |
          v
-Delta Lake — 9 tabelas gerenciadas
-
-Silver / Gold — Pendentes
+SILVER — Delta Lake
+workspace.silver
+         |
+         +-- orders (implementada)
+         |
+         v
+GOLD — Pendente
 ```
 
-Não foi configurada ingestão automática a partir do Amazon S3.
+Os arquivos Raw são mantidos em um Volume gerenciado pelo Unity Catalog.
+
+As tabelas Bronze e Silver são gerenciadas pelo Databricks e armazenadas no formato Delta Lake.
+
+Ainda não existe ingestão automática a partir do Amazon S3.
 
 ## 3. Dados de origem
 
-Dataset público: Olist Brazilian E-Commerce.
+**Dataset:** Olist Brazilian E-Commerce.
 
 **Volume:** `workspace.default.olist_raw`
 
 **Caminho:** `/Volumes/workspace/default/olist_raw/`
 
-Foram carregados nove arquivos CSV originais, preservados para rastreabilidade e reprocessamento.
+Foram carregados nove arquivos CSV originais, preservados para rastreabilidade e eventual reprocessamento.
 
 ## 4. Notebooks e processamento
 
 **Repositório:** `lakehouse-olist-databricks-aws`
 
-**Notebooks:**
+| Notebook | Finalidade |
+|---|---|
+| `01_Bronze_Orders_Pipeline.ipynb` | Ingestão inicial de pedidos |
+| `02_bronze_demais_tabelas.ipynb` | Ingestão parametrizada das demais tabelas Bronze |
+| `03_silver-orders.ipynb` | Profiling, tipagem, validação e persistência de pedidos na Silver |
 
-- `notebooks/01_Bronze_Orders_Pipeline.ipynb`
-- `notebooks/02_bronze_demais_tabelas.ipynb`
+### 4.1. Processamento Bronze
 
-O primeiro notebook implementa a carga inicial de `orders`.
-
-O segundo notebook processa os outros oito arquivos CSV utilizando um mapeamento parametrizado de fontes e tabelas de destino.
-
-**Estratégia de ingestão:**
-
-- Leitura com `spark.read.format("csv")`.
+- Leitura dos arquivos CSV com PySpark.
 - Preservação inicial dos tipos como `string`.
-- Gravação de tabelas gerenciadas em Delta Lake.
-- Verificação de existência antes da gravação.
-- Validação das quantidades e do formato físico das tabelas.
+- Persistência em tabelas Delta Lake.
+- Verificação de existência antes da criação.
+- Validação de contagens e formato Delta.
 
-A proteção contra sobrescrita evita recriar tabelas existentes. Não implementa, por si só, cargas incrementais nem verifica alterações posteriores nos arquivos de origem.
+Essa estratégia protege a carga inicial contra sobrescritas, mas ainda não implementa ingestão incremental ou sincronização automática com a fonte.
+
+### 4.2. Processamento Silver — Orders
+
+A Silver utiliza como fonte a tabela `workspace.bronze.orders`.
+
+O notebook realiza:
+
+1. Análise de duplicidades em `order_id`.
+2. Identificação de valores ausentes.
+3. Conversão das cinco colunas temporais para `timestamp`.
+4. Verificação de falhas de conversão.
+5. Gravação da tabela `workspace.silver.orders` em Delta Lake.
+6. Validação da quantidade de registros e do formato.
+
+A gravação verifica previamente se a tabela existe para evitar substituição acidental.
 
 ## 5. Resultados validados — Bronze
 
@@ -95,29 +122,21 @@ A proteção contra sobrescrita evita recriar tabelas existentes. Não implement
 | products | 32.951 | Delta |
 | sellers | 3.095 | Delta |
 
-**Resultado:** 9 tabelas existentes, com formato Delta confirmado e contagens consistentes com o profiling de referência.
-
-Essas verificações não substituem testes de unicidade, integridade referencial, completude e regras de negócio.
+**Resultado:** nove tabelas criadas e validadas quanto à existência, formato e quantidade de registros.
 
 ## 6. Incidente técnico — CSV order_reviews
 
-Durante a criação da Bronze, foi identificada divergência na quantidade de registros de avaliações.
+Durante a ingestão Bronze, foi encontrada uma divergência na leitura do arquivo `olist_order_reviews_dataset.csv`.
 
-| Configuração de leitura | Registros |
+| Configuração | Registros |
 |---|---:|
 | Leitura inicial | 104.162 |
 | `multiLine=true` | 99.249 |
 | `multiLine=true`, `quote` e `escape` | 99.224 |
 
-**Diagnóstico:** a interpretação de campos com aspas e quebras de linha afetava a contagem de registros.
+**Diagnóstico:** campos contendo aspas e quebras de linha afetavam a interpretação dos registros pelo parser CSV.
 
-Foi validado um DataFrame com 99.224 registros e sete colunas, compatível com o profiling original.
-
-Com autorização, a tabela `workspace.bronze.order_reviews` foi substituída de maneira controlada.
-
-**Resultado:** tabela corrigida para 99.224 registros, formato Delta.
-
-O notebook de ingestão foi posteriormente consolidado com as configurações de leitura:
+A configuração de leitura foi ajustada para:
 
 ```python
 .option("header", "true")
@@ -127,105 +146,123 @@ O notebook de ingestão foi posteriormente consolidado com as configurações de
 .option("inferSchema", "false")
 ```
 
-O incidente demonstra a importância de validar os resultados de ingestão mesmo quando a execução termina sem erros.
+Após validar o DataFrame corrigido, a tabela Bronze `order_reviews` foi substituída de maneira controlada.
 
-## 7. Validação e qualidade
+**Resultado:** 99.224 registros, sete colunas e formato Delta.
 
-Validações executadas:
+## 7. Resultados validados — Silver
 
-- Presença dos nove CSVs no Volume.
-- Leitura e estrutura do dataset `orders`.
-- Criação das nove tabelas Bronze.
-- Contagens de registros das nove tabelas.
-- Confirmação do formato Delta.
-- Proteção contra recriação de tabelas existentes.
-- Investigação e correção da contagem de `order_reviews`.
-- Reexecução da lógica de existência sem sobrescrever tabelas.
+### 7.1. Tabela `workspace.silver.orders`
 
-**Ainda pendentes:** testes automatizados, validações de integridade, regras formais de qualidade, observabilidade e ingestão incremental.
+| Validação | Resultado |
+|---|---|
+| Registros | 99.441 |
+| IDs únicos | 99.441 |
+| IDs duplicados | 0 |
+| Colunas temporais convertidas | 5 |
+| Conversões inválidas | 0 |
+| Formato | Delta Lake |
+
+**Colunas convertidas para `timestamp`:**
+
+- `order_purchase_timestamp`
+- `order_approved_at`
+- `order_delivered_carrier_date`
+- `order_delivered_customer_date`
+- `order_estimated_delivery_date`
+
+As colunas `order_id`, `customer_id` e `order_status` permanecem como `string`.
+
+### 7.2. Tratamento de valores nulos
+
+O profiling identificou campos temporais com valores ausentes, incluindo:
+
+- `order_approved_at`: 160 registros.
+- `order_delivered_carrier_date`: 1.783 registros.
+
+Valores nulos originalmente presentes foram preservados, sem imputação artificial.
+
+Nenhuma das cinco colunas apresentou falhas de conversão de valores não vazios para `timestamp`.
+
+O processo ainda não contempla todas as regras de qualidade de negócio necessárias para produção.
 
 ## 8. Versionamento — GitHub Flow
 
 ### Entrega 1 — Estrutura inicial e Bronze Orders
 
-- Branch: `feature/estrutura-inicial`
-- Notebook de pedidos desenvolvido e validado.
-- Documentação e primeiras evidências versionadas.
-- Pull Request #1 integrado à `main`.
+- Branch: `feature/estrutura-inicial`.
+- PR #1 integrado à `main`.
 - Commit de merge: `6410a5d`.
-- Branch de desenvolvimento excluída após o merge.
+- Branch excluída após a integração.
 
 **Status:** concluída.
 
 ### Entrega 2 — Bronze completa
 
-- Branch: `feature/bronze-demais-tabelas`
-- Notebook reutilizável implementado.
+- Branch: `feature/bronze-demais-tabelas`.
 - Nove tabelas Bronze validadas.
-- Notebook original renomeado para seguir a numeração.
-- Commit: `24a5afd`.
-- Commit e push confirmados no GitHub.
+- Notebook parametrizado desenvolvido.
+- Commit principal: `24a5afd`.
+- PR #2 integrado à `main`.
+- Branch excluída após a integração.
 
-**Status:** aguardando atualização documental e Pull Request para `main`.
+**Status:** concluída.
 
-Nunca realizar commits diretamente na `main`.
+### Entrega 3 — Silver Orders
+
+- Branch: `feature/silver-tratamento-dados`.
+- Notebook `03_silver-orders.ipynb` desenvolvido e validado.
+- Commit principal: `391132e`.
+- Commit adicional de metadados informado como realizado.
+- Pull Request #3 ainda pendente.
+
+**Status:** implementação inicial concluída; documentação e integração à `main` pendentes.
+
+O projeto segue GitHub Flow, com alterações realizadas em branches de desenvolvimento e integradas à `main` por Pull Requests.
 
 ## 9. Custos e segurança
 
 Ambiente utilizado: Databricks Free Edition, sujeito às cotas e limitações da modalidade.
 
-Nenhuma infraestrutura AWS paga foi provisionada especificamente para o P04 até esta etapa.
+Nenhuma infraestrutura AWS paga foi criada especificamente para o P04 até esta etapa.
 
-Medidas adotadas:
+Diretrizes adotadas:
 
-- Dados CSV e tabelas Delta fora do GitHub.
-- Controle de versão dos notebooks e documentação.
-- Preservação dos arquivos Raw.
-- Proteção contra sobrescrita nas cargas iniciais.
-- Segredos e credenciais não devem ser publicados.
+- Não armazenar arquivos CSV ou tabelas Delta no GitHub.
+- Versionar notebooks e documentação técnica.
+- Manter arquivos Raw para eventual reprocessamento.
+- Não publicar credenciais, tokens ou segredos.
+- Evitar recursos computacionais desnecessários.
+- Não sobrescrever tabelas existentes sem validação e autorização.
 
 **Pendência de segurança:** confirmar a revogação do token GitHub anteriormente exposto.
 
-## 10. Próximas entregas
+## 10. Limitações e pendências
 
-1. Finalizar documentação e evidências da Bronze completa.
-2. Abrir e revisar o Pull Request da segunda entrega.
-3. Integrar à `main`, sincronizar o Databricks e encerrar a branch.
-4. Construir a camada Silver com tipagem, deduplicação e qualidade.
-5. Desenvolver a Gold com fatos, dimensões e indicadores.
-6. Implementar orquestração com Lakeflow Jobs.
-7. Evoluir testes, monitoramento e CI/CD.
-8. Avaliar a integração real Databricks + AWS S3, com orçamento previamente aprovado.
+- Ingestão inicial executada manualmente.
+- Silver implementada apenas para `orders`.
+- Ausência de testes automatizados.
+- Ausência de ingestão incremental.
+- Regras de qualidade ainda limitadas.
+- Ausência de orquestração com Lakeflow Jobs.
+- Camada Gold não implementada.
+- Integração automática com Amazon S3 não implementada.
+- CI/CD e monitoramento operacional pendentes.
 
-## 11. Evidências técnicas
+## 11. Próximas entregas
 
-**Local previsto:** `docs/evidencias/`
+1. Finalizar a documentação e o PR #3 da Silver Orders.
+2. Expandir a Silver para as demais entidades Olist.
+3. Implementar validações de qualidade e integridade referencial.
+4. Construir tabelas Gold com modelagem analítica.
+5. Automatizar os pipelines utilizando Lakeflow Jobs.
+6. Implementar testes, monitoramento e CI/CD.
+7. Avaliar integração com AWS S3 mediante análise prévia de custos.
 
-**Registro:** `docs/evidencias/REGISTRO_EVIDENCIAS.md`
+## 12. Conclusão técnica
 
-Evidências registradas até o momento:
+O projeto possui a camada Bronze completa e a primeira tabela Silver implementada.
 
-| Nº | Evidência |
-|---|---|
-| 01 | Upload dos nove arquivos CSV |
-| 02 | Leitura inicial de pedidos com PySpark |
-| 03 | Criação da tabela Bronze Orders |
-| 04 | Validação sem sobrescrita |
-| 05 | Tabela Orders no Unity Catalog |
-| 06 | Primeiro commit e push |
-| 07 | Código e documentação na branch |
-| 08 | Merge do PR #1 |
-| 09 | Main selecionada no Databricks |
-| 10 | Exclusão da branch após merge |
-| 11 | Listagem dos nove arquivos Raw |
-| 12 | Criação das oito tabelas adicionais |
-| 13 | Validação do DataFrame corrigido de avaliações |
-| 14 | Correção da tabela Delta `order_reviews` |
-| 15 | Existência das nove tabelas Bronze |
-| 16 | Contagens e formato Delta das nove tabelas |
+A Bronze preserva os dados de origem em Delta Lake, enquanto a Silver inicia a aplicação de tipagem e verificações de qualidade.
 
-As evidências 01–06 foram incluídas na primeira entrega. As evidências posteriores devem ser verificadas e incorporadas ao repositório antes do encerramento da segunda entrega.
-
----
-
-**Conclusão técnica:** a camada Bronze do Olist está implementada e validada quanto à existência, formato Delta e quantidade de registros. As próximas etapas devem acrescentar qualidade formal, transformação e automação, sem tratar a carga inicial como uma solução de produção completa.
+O pipeline ainda está em desenvolvimento e não deve ser apresentado como uma solução totalmente automatizada ou pronta para produção.
