@@ -1,0 +1,81 @@
+resources:
+  jobs:
+    p04_lakehouse_olist_pipeline:
+      name: p04_lakehouse_olist_pipeline
+      tasks:
+        - task_key: bronze_demais_tabelas
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            notebook_path: ../notebooks/02_bronze_demais_tabelas.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+        - task_key: bronze_orders
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            notebook_path: ../notebooks/01_Bronze_Orders_Pipeline.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+        - task_key: silver_demais_tabelas
+          depends_on:
+            - task_key: bronze_demais_tabelas
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            notebook_path: ../notebooks/04_silver.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+        - task_key: silver_orders
+          depends_on:
+            - task_key: bronze_orders
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            notebook_path: ../notebooks/03_silver-orders.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+        - task_key: gold_modelagem
+          depends_on:
+            - task_key: silver_demais_tabelas
+            - task_key: silver_orders
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            notebook_path: ../notebooks/05_gold_modelagem.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+        - task_key: validar_qualidade
+          depends_on:
+            - task_key: gold_modelagem
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            notebook_path: ../notebooks/06_qualidade_dados.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+      email_notifications:
+        no_alert_for_skipped_runs: false
+        on_failure:
+          - rafael.bortolotti.dev@gmail.com
+      max_concurrent_runs: 1
+      notification_settings:
+        no_alert_for_canceled_runs: false
+        no_alert_for_skipped_runs: false
+      performance_target: PERFORMANCE_OPTIMIZED
+      queue:
+        enabled: true
+      timeout_seconds: 0
+      webhook_notifications: {}

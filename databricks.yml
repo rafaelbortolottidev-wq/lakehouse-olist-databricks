@@ -1,0 +1,16 @@
+# FASE 8.7 — Configuração do Bundle
+# Define o projeto e o ambiente de implantação.
+
+bundle:
+  name: p04_lakehouse_olist
+
+include:
+  - resources/*.yml
+  - resources/*/*.yml
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://dbc-6998f2a3-e6b1.cloud.databricks.com
