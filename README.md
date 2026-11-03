@@ -2,8 +2,6 @@
 
 # Lakehouse Olist — Databricks + AWS
 
-# Lakehouse Olist — Databricks + AWS
-
 ## 1. Objetivo
 
 Construir um Lakehouse utilizando dados públicos do e-commerce brasileiro Olist, aplicando arquitetura Medallion, processamento com PySpark e armazenamento em Delta Lake.
