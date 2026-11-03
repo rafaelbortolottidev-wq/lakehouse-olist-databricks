@@ -1,4 +1,7 @@
-![Infográfico Lakehouse Olist no Databricks e AWS_1793639726589.png](./Infográfico Lakehouse Olist no Databricks e AWS_1793639726589.png "Infográfico Lakehouse Olist no Databricks e AWS_1793639726589.png")
+![Arquitetura Lakehouse Olist — Databricks e AWS](./Infográfico%20Lakehouse%20Olist%20no%20Databricks%20e%20AWS_1793639726589.png)
+
+# Lakehouse Olist — Databricks + AWS
+
 # Lakehouse Olist — Databricks + AWS
 
 ## 1. Objetivo
