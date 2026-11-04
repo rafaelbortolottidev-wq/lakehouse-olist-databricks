@@ -1,98 +1,83 @@
-![Arquitetura Lakehouse Olist — Databricks e AWS](./Infográfico%20Lakehouse%20Olist%20no%20Databricks%20e%20AWS_1793639726589.png)
+![Arquitetura Lakehouse Olist — Databricks e AWS](./src/Lakehouse%20Olist_%20Arquitetura%20e%20CI_CD%20Implementados.png)
 
 # Lakehouse Olist — Databricks + AWS
 
-## 1. Objetivo
+## Objetivo
 
-Construir um Lakehouse utilizando dados públicos do e-commerce brasileiro Olist, aplicando arquitetura Medallion, processamento com PySpark e armazenamento em Delta Lake.
+Construir um Lakehouse com dados públicos do e-commerce brasileiro Olist, utilizando arquitetura Medallion, PySpark, Delta Lake, modelagem dimensional e automação de CI/CD.
 
-**Plataforma utilizada:** Databricks Free Edition. A integração direta com serviços AWS ainda não foi implementada.
+**Ambiente:** Databricks Free Edition com Serverless e Unity Catalog.
 
-## 2. Tecnologias
+**Observação:** a integração direta com serviços AWS ainda não foi implementada.
 
-- Databricks
-- Apache Spark e PySpark
-- Delta Lake
-- Unity Catalog
+## Tecnologias
+
+- Databricks, Apache Spark e PySpark
+- Delta Lake e Unity Catalog
 - Lakeflow Jobs
-- Git e GitHub
+- Databricks Declarative Automation Bundles
+- Git, GitHub e GitHub Actions
+- OAuth M2M
 
-## 3. Arquitetura
+## Arquitetura
 
-O pipeline está organizado em três camadas:
+O pipeline utiliza três camadas:
 
-- **Bronze:** ingestão dos nove arquivos CSV originais em tabelas Delta.
-- **Silver:** conversão de tipos, padronização e validações essenciais.
-- **Gold:** modelo dimensional para análises de vendas.
+- **Bronze:** ingestão de nove arquivos CSV em tabelas Delta.
+- **Silver:** tratamento, padronização e validação dos dados.
+- **Gold:** modelagem dimensional para análises de vendas.
 
-As tabelas estão organizadas nos schemas `workspace.bronze`, `workspace.silver` e `workspace.gold`.
+As tabelas estão organizadas em `workspace.bronze`, `workspace.silver` e `workspace.gold`.
 
-## 4. Camada Gold
-
-Modelo dimensional inicial composto por:
+## Modelo dimensional — Gold
 
 | Tabela | Finalidade |
 |---|---|
-| `fato_vendas` | Itens dos pedidos, valores e informações de vendas |
-| `dim_cliente` | Identificação e localização dos clientes |
-| `dim_produto` | Produtos, categorias e características |
-| `dim_vendedor` | Identificação e localização dos vendedores |
+| `fato_vendas` | Vendas por item do pedido |
+| `dim_cliente` | Informações dos clientes |
+| `dim_produto` | Produtos e categorias |
+| `dim_vendedor` | Informações dos vendedores |
 | `dim_tempo` | Calendário analítico |
 
-A `fato_vendas` utiliza granularidade de um registro por item do pedido. Os valores dos produtos e fretes permanecem separados.
+A tabela `fato_vendas` contém **112.650 registros**.
 
-## 5. Orquestração — Lakeflow Jobs
+## Orquestração e qualidade
 
-**Job:** `p04_lakehouse_olist_pipeline`
+O Lakeflow Job `p04_lakehouse_olist_pipeline` organiza seis tarefas, incluindo ingestão, transformação, modelagem e validação de qualidade.
 
-A execução foi configurada com cinco tarefas:
+Os testes verificam chaves nulas, duplicidades e integridade referencial.
 
-| Tarefa | Notebook | Dependência |
-|---|---|---|
-| `bronze_orders` | `01_Bronze_Orders_Pipeline` | Nenhuma |
-| `bronze_demais_tabelas` | `02_bronze_demais_tabelas` | Nenhuma |
-| `silver_orders` | `03_silver-orders` | `bronze_orders` |
-| `silver_demais_tabelas` | `04_silver` | `bronze_demais_tabelas` |
-| `gold_modelagem` | `05_gold_modelagem` | Ambas as tarefas Silver |
+**Resultado:** pipeline original executado com sucesso usando Serverless.
 
-As tarefas Bronze podem executar independentemente. A Gold depende da conclusão bem-sucedida das duas tarefas Silver.
+## CI/CD — GitHub Actions
 
-### Resultado da execução
+O projeto utiliza dois workflows:
 
-- **Data:** 02/11/2026
-- **Modo:** execução manual
-- **Compute:** Serverless
-- **Status final do Job:** `Succeeded`
-- **Agendamento automático:** não configurado
+- **CI (`ci.yml`):** valida a estrutura e a sintaxe dos notebooks nos Pull Requests.
+- **CD (`cd.yml`):** valida e implanta automaticamente o Databricks Bundle após alterações na `main`, mantendo execução manual opcional.
 
-### Limitações atuais
+A implantação usa um Service Principal com autenticação OAuth M2M e credencial protegida no GitHub Secrets.
 
-Os notebooks verificam se as tabelas já existem antes da gravação. Essa abordagem evita sobrescritas acidentais, mas não implementa atualização incremental.
+**Resultados validados:**
 
-Consequentemente, novas informações nas fontes não são incorporadas automaticamente às tabelas existentes.
+- CI aprovado.
+- Validação do Bundle aprovada.
+- Deploy manual aprovado.
+- Deploy automático após merge aprovado.
+- Job de desenvolvimento criado no Databricks, preservando o Job original.
 
-A configuração do Lakeflow Job foi realizada pela interface do Databricks e ainda não está declarada como código versionado no repositório.
+O Job implantado pelo Bundle ainda não foi executado de ponta a ponta.
 
-## 6. Versionamento
+## Versionamento
 
-O desenvolvimento segue GitHub Flow:
+O desenvolvimento segue GitHub Flow: branch por alteração, testes, Commit, Push, Pull Request, Merge e sincronização da `main`.
 
-1. Branch de desenvolvimento criada a partir da `main`.
-2. Implementação e validação.
-3. Commit e Push.
-4. Pull Request e Merge.
-5. Sincronização da `main`.
+## Status
 
-## 7. Próximas melhorias
+**Versão 1.0 — Concluída no escopo de portfólio.**
 
-- Atualização incremental e reprocessamento seguro.
-- Testes automatizados e regras adicionais de qualidade.
-- Monitoramento e tratamento de falhas.
-- CI/CD e versionamento da configuração dos Jobs.
-- Avaliação da integração com Amazon S3.
+As camadas Bronze, Silver e Gold, os testes de qualidade, a orquestração e o CI/CD estão implementados.
 
-## 8. Status
+**Evoluções futuras:** processamento incremental, testes adicionais, integração com Amazon S3 e validação do Job de desenvolvimento.
 
-**Em desenvolvimento.**
-
-Camadas Bronze, Silver e Gold implementadas. Primeira execução completa do Lakeflow Job concluída com sucesso. Melhorias de produção e automação ainda pendentes.
+A documentação técnica completa está disponível em [DOCUMENTACAO_MASTER.md](docs/DOCUMENTACAO_MASTER.md).
