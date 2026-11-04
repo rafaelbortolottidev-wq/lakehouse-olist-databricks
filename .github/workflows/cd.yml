@@ -1,4 +1,3 @@
-
 name: CD - Databricks
 
 on:
@@ -8,8 +7,14 @@ permissions:
   contents: read
 
 jobs:
-  validar-bundle:
+  deploy:
     runs-on: ubuntu-latest
+
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      DATABRICKS_AUTH_TYPE: oauth-m2m
 
     steps:
       - name: Baixar codigo
@@ -19,9 +24,7 @@ jobs:
         uses: databricks/setup-cli@main
 
       - name: Validar Bundle
-        env:
-          DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
-          DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
-          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
-          DATABRICKS_AUTH_TYPE: oauth-m2m
         run: databricks bundle validate --target dev
+
+      - name: Implantar Bundle
+        run: databricks bundle deploy --target dev
