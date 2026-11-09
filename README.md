@@ -1,6 +1,6 @@
-![Arquitetura Lakehouse Olist — Databricks e AWS](./src/Lakehouse%20Olist_%20Arquitetura%20e%20CI_CD%20Implementados.png)
+![Arquitetura Lakehouse Olist — Databricks](./src/Lakehouse Olist no Databricks_ Arquitetura e Evoluções.png)
 
-# Lakehouse Olist — Databricks + AWS
+# Lakehouse Olist — Databricks
 
 ## Objetivo
 

@@ -1,4 +1,4 @@
-# Lakehouse Olist — Databricks + AWS
+# Lakehouse Olist — Databricks
 
 ## 1. Objetivo
 
@@ -129,7 +129,7 @@ Automatizar a publicação da configuração do Lakeflow Job e dos notebooks no 
 ### 9.2 Estrutura do projeto
 
 ```text
-lakehouse-olist-databricks-aws/
+lakehouse-olist-databricks
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml
