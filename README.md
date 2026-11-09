@@ -1,4 +1,4 @@
-![Arquitetura Lakehouse Olist — Databricks](./src/Lakehouse Olist no Databricks_ Arquitetura e Evoluções.png)
+![Arquitetura Lakehouse Olist — Databricks](./src/Lakehouse_Olist_Databricks_Arquitetura_Evoluções.png)
 
 # Lakehouse Olist — Databricks
 
